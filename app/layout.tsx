@@ -37,7 +37,7 @@ export default function RootLayout({
 
             <nav className="space-y-1 text-sm text-stone-700">
               <Link href="/" className="block rounded px-3 py-2 hover:bg-stone-100">
-                Dashboard
+                Info Panel
               </Link>
 
               <details className="group">
@@ -46,16 +46,16 @@ export default function RootLayout({
                 </summary>
                 <div className="ml-3 mt-1 space-y-1">
                   <Link href="/material" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Material
+                    - Material
                   </Link>
                   <Link href="/fabricacion" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Fabricación
+                    - Fabricación
                   </Link>
                   <Link href="/cuadrillas" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Cuadrillas
+                    - Cuadrillas
                   </Link>
                   <Link href="/suministro" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Suministro
+                    - Suministro
                   </Link>
                 </div>
               </details>
@@ -66,13 +66,13 @@ export default function RootLayout({
                 </summary>
                 <div className="ml-3 mt-1 space-y-1">
                   <Link href="/operaciones" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Órdenes de Compra
+                    - Órdenes de Compra
                   </Link>
                   <Link href="/programa-trabajo" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Programa de Trabajo
+                    - Programa de Trabajo
                   </Link>
                   <Link href="/historial" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Historial
+                    - Historial
                   </Link>
                 </div>
               </details>
@@ -82,11 +82,20 @@ export default function RootLayout({
                   Activos
                 </summary>
                 <div className="ml-3 mt-1 space-y-1">
-                  <Link href="/activos" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Activos
+                  <Link href="/activos/fabricacion" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Equipo de Fabricación
                   </Link>
-                  <Link href="/mantenimientos" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Mantenimientos
+                  <Link href="/activos/vehiculos" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Vehículos
+                  </Link>
+                  <Link href="/activos/herramientas" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Herramientas y Equipos
+                  </Link>
+                  <Link href="/activos/oficina" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Equipo de Oficina
+                  </Link>
+                  <Link href="/activos/mantenimientos" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Mantenimientos
                   </Link>
                 </div>
               </details>
@@ -97,13 +106,13 @@ export default function RootLayout({
                 </summary>
                 <div className="ml-3 mt-1 space-y-1">
                   <Link href="/usuarios" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Usuarios
+                    - Usuarios
                   </Link>
                   <Link href="/roles" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Roles
+                    - Roles
                   </Link>
                   <Link href="/configuracion" className="block rounded px-3 py-1 hover:bg-stone-100">
-                    -Configuración
+                    - Configuración
                   </Link>
                 </div>
               </details>

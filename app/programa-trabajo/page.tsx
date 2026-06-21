@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type EstatusTrabajo = "En Proceso" | "Continuará" | "Terminado" | "Reprogramar";
 
 type TrabajoDia = {
-  id: number;
+  id: string;
   fecha: string;
   rs: string;
   ordenCompra: string;
@@ -21,24 +22,9 @@ type TrabajoDia = {
   incidencias: string;
 };
 
-const trabajosIniciales: TrabajoDia[] = [
-  {
-    id: 1,
-    fecha: "2026-06-15",
-    rs: "Cometa",
-    ordenCompra: "85166",
-    cliente: "Sunrise",
-    descripcionServicio: "Puerta #1: Reparación",
-    estatus: "Continuará",
-    tecnico: "Javier",
-    ayudantes: "Jesús",
-    radio: "142-7301",
-    vehiculo: "Hilux Gris",
-    notas: "",
-    personalTaller: "Víctor, Alberto",
-    incidencias: "Jose Luis faltó Sergio llegó 1 hora tarde",
-  },
-];
+function fechaHoy() {
+  return new Date().toISOString().split("T")[0];
+}
 
 function badgeEstatus(estatus: EstatusTrabajo) {
   if (estatus === "En Proceso")
@@ -57,16 +43,16 @@ function badgeEstatus(estatus: EstatusTrabajo) {
 }
 
 export default function ProgramaTrabajoPage() {
-  const [trabajos, setTrabajos] = useState<TrabajoDia[]>(trabajosIniciales);
+  const [trabajos, setTrabajos] = useState<TrabajoDia[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
-  const [fechaFiltro, setFechaFiltro] = useState("2026-06-15");
+  const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
   const [modalAbierto, setModalAbierto] = useState(false);
   const [trabajoEditando, setTrabajoEditando] = useState<TrabajoDia | null>(
     null
   );
 
-  const [fecha, setFecha] = useState("2026-06-15");
+  const [fecha, setFecha] = useState(fechaHoy());
   const [rs, setRs] = useState("Cometa");
   const [ordenCompra, setOrdenCompra] = useState("");
   const [cliente, setCliente] = useState("");
@@ -79,6 +65,43 @@ export default function ProgramaTrabajoPage() {
   const [notas, setNotas] = useState("");
   const [personalTaller, setPersonalTaller] = useState("");
   const [incidencias, setIncidencias] = useState("");
+
+  async function cargarTrabajos() {
+    const { data, error } = await supabase
+      .from("programa_trabajo")
+      .select("*")
+      .order("fecha", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const trabajosFormateados: TrabajoDia[] = (data || []).map(
+      (item: any) => ({
+        id: item.id,
+        fecha: item.fecha,
+        rs: item.rs || "",
+        ordenCompra: item.orden_compra || "",
+        cliente: item.cliente || "",
+        descripcionServicio: item.descripcion_servicio || "",
+        estatus: item.estatus as EstatusTrabajo,
+        tecnico: item.tecnico || "",
+        ayudantes: item.ayudantes || "",
+        radio: item.radio || "",
+        vehiculo: item.vehiculo || "",
+        notas: item.notas || "",
+        personalTaller: item.personal_taller || "",
+        incidencias: item.incidencias || "",
+      })
+    );
+
+    setTrabajos(trabajosFormateados);
+  }
+
+  useEffect(() => {
+    cargarTrabajos();
+  }, []);
 
   const trabajosFiltrados = useMemo(() => {
     return trabajos.filter((trabajo) => {
@@ -113,7 +136,7 @@ export default function ProgramaTrabajoPage() {
     .join("\n");
 
   function limpiarFormulario() {
-    setFecha(fechaFiltro || "");
+    setFecha(fechaFiltro || fechaHoy());
     setRs("Cometa");
     setOrdenCompra("");
     setCliente("");
@@ -152,42 +175,50 @@ export default function ProgramaTrabajoPage() {
     setModalAbierto(true);
   }
 
-  function guardarTrabajo() {
+  async function guardarTrabajo() {
     if (!fecha || !descripcionServicio.trim()) {
       alert("Fecha y descripción del servicio son obligatorios.");
       return;
     }
 
-    const trabajoGuardado: TrabajoDia = {
-      id: trabajoEditando ? trabajoEditando.id : Date.now(),
+    const datos = {
       fecha,
-      rs,
-      ordenCompra,
-      cliente,
-      descripcionServicio,
+     rs,
+      orden_compra: ordenCompra || null,
+      cliente: cliente || null,
+      descripcion_servicio: descripcionServicio,
       estatus,
-      tecnico,
-      ayudantes,
-      radio,
-      vehiculo,
-      notas,
-      personalTaller,
-      incidencias,
+      tecnico: tecnico || null,
+      ayudantes: ayudantes || null,
+      radio: radio || null,
+      vehiculo: vehiculo || null,
+      notas: notas || null,
+      personal_taller: personalTaller || null,
+      incidencias: incidencias || null,
     };
 
     if (trabajoEditando) {
-      setTrabajos((actuales) =>
-        actuales.map((trabajo) =>
-          trabajo.id === trabajoEditando.id ? trabajoGuardado : trabajo
-        )
-      );
+      const { error } = await supabase
+        .from("programa_trabajo")
+        .update(datos)
+        .eq("id", trabajoEditando.id);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
     } else {
-      setTrabajos((actuales) =>
-        [...actuales, trabajoGuardado].sort((a, b) =>
-          a.cliente.localeCompare(b.cliente, "es")
-        )
-      );
+      const { error } = await supabase
+        .from("programa_trabajo")
+        .insert(datos);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
     }
+
+    await cargarTrabajos();
 
     limpiarFormulario();
     setModalAbierto(false);
@@ -207,7 +238,7 @@ export default function ProgramaTrabajoPage() {
     );
   }
 
-  function cambiarEstatusDirecto(id: number, nuevoEstatus: EstatusTrabajo) {
+  function cambiarEstatusDirecto(id: string, nuevoEstatus: EstatusTrabajo) {
     setTrabajos((actuales) =>
       actuales.map((trabajo) =>
         trabajo.id === id ? { ...trabajo, estatus: nuevoEstatus } : trabajo
