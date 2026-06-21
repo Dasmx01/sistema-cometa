@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Moneda = "MXN" | "USD";
 
 type OrdenCompra = {
-  id: number;
+  id: string;
   fecha: string;
   cliente: string;
   planta: string;
@@ -21,26 +22,6 @@ type OrdenCompra = {
   }[];
 };
 
-const ordenesIniciales: OrdenCompra[] = [
-  {
-    id: 1,
-    fecha: "2026-07-12",
-    cliente: "Lear",
-    planta: "Monarca",
-    numeroOC: "MX928388",
-    actividadPrincipal: "Reparación de Cortina Enrollable",
-    monto: 123456,
-    moneda: "MXN",
-    estatus: "En proceso",
-    comentarios: "Reemplazo de escuadra y 7 duelas.",
-    actividades: [
-      { descripcion: "Cortina #1 - Reemplazo de escuadra", completada: true },
-      { descripcion: "Cortina #1 - Reemplazo de 7 duelas", completada: true },
-      { descripcion: "Ajuste final de cortina", completada: false },
-    ],
-  },
-];
-
 function calcularProgreso(orden: OrdenCompra) {
   if (orden.actividades.length === 0) return 0;
   const terminadas = orden.actividades.filter((a) => a.completada).length;
@@ -55,7 +36,7 @@ function formatearMoneda(monto: number, moneda: Moneda) {
 }
 
 export default function OperacionesPage() {
-  const [ordenes, setOrdenes] = useState<OrdenCompra[]>(ordenesIniciales);
+  const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ordenSeleccionada, setOrdenSeleccionada] =
@@ -71,6 +52,58 @@ export default function OperacionesPage() {
   const [estatus, setEstatus] = useState("Abierta");
   const [comentarios, setComentarios] = useState("");
   const [actividadesTexto, setActividadesTexto] = useState("");
+
+  async function cargarOrdenes() {
+    const { data: ordenesData, error } = await supabase
+      .from("ordenes_compra")
+      .select("*")
+      .order("fecha", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const { data: actividadesData, error: actividadesError } =
+      await supabase
+        .from("ordenes_compra_actividades")
+        .select("*");
+
+    if (actividadesError) {
+      alert(actividadesError.message);
+      return;
+    }
+
+    const ordenesFormateadas: OrdenCompra[] = (ordenesData || []).map(
+      (orden: any) => ({
+        id: orden.id,
+        fecha: orden.fecha,
+        cliente: orden.cliente,
+        planta: orden.planta || "",
+        numeroOC: orden.numero_oc,
+        actividadPrincipal: orden.actividad_principal,
+        monto: Number(orden.monto) || 0,
+        moneda: (orden.moneda || "MXN") as Moneda,
+        estatus: orden.estatus || "Abierta",
+        comentarios: orden.comentarios || "",
+        actividades: (actividadesData || [])
+          .filter(
+            (actividad: any) =>
+              actividad.orden_id === orden.id
+          )
+          .map((actividad: any) => ({
+            descripcion: actividad.descripcion,
+            completada: actividad.completada,
+          })),
+      })
+    );
+
+    setOrdenes(ordenesFormateadas);
+  }
+
+  useEffect(() => {
+    cargarOrdenes();
+  }, []);
 
   const ordenesFiltradas = useMemo(() => {
     return ordenes.filter((orden) => {
@@ -94,9 +127,30 @@ export default function OperacionesPage() {
     setActividadesTexto("");
   }
 
-  function guardarOrden() {
+  async function guardarOrden() {
     if (!cliente.trim() || !numeroOC.trim() || !actividadPrincipal.trim()) {
       alert("Cliente, número de OC y actividad principal son obligatorios.");
+      return;
+    }
+
+    const { data: ordenGuardada, error: errorOrden } = await supabase
+      .from("ordenes_compra")
+      .insert({
+        fecha: fecha || new Date().toISOString().slice(0, 10),
+        cliente,
+        planta: planta || null,
+        numero_oc: numeroOC,
+        actividad_principal: actividadPrincipal,
+        monto: Number(monto) || 0,
+        moneda,
+        estatus,
+        comentarios: comentarios || null,
+      })
+      .select()
+      .single();
+
+    if (errorOrden) {
+      alert("Error al guardar OC: " + errorOrden.message);
       return;
     }
 
@@ -105,33 +159,28 @@ export default function OperacionesPage() {
       .map((linea) => linea.trim())
       .filter(Boolean)
       .map((descripcion) => ({
+        orden_id: ordenGuardada.id,
         descripcion,
         completada: false,
       }));
 
-    const nuevaOrden: OrdenCompra = {
-      id: Date.now(),
-      fecha: fecha || new Date().toISOString().slice(0, 10),
-      cliente,
-      planta: planta || "Sin especificar",
-      numeroOC,
-      actividadPrincipal,
-      monto: Number(monto) || 0,
-      moneda,
-      estatus,
-      comentarios,
-      actividades,
-    };
+    if (actividades.length > 0) {
+      const { error: errorActividades } = await supabase
+        .from("ordenes_compra_actividades")
+        .insert(actividades);
 
-    setOrdenes((actuales) =>
-      [...actuales, nuevaOrden].sort((a, b) => a.fecha.localeCompare(b.fecha))
-    );
+      if (errorActividades) {
+        alert("La OC se guardó, pero falló el checklist: " + errorActividades.message);
+        return;
+      }
+    }
 
     limpiarFormulario();
     setModalAbierto(false);
+    cargarOrdenes();
   }
 
-  function cambiarActividad(ordenId: number, actividadIndex: number) {
+  function cambiarActividad(ordenId: string, actividadIndex: number) {
     setOrdenes((actuales) =>
       actuales.map((orden) => {
         if (orden.id !== ordenId) return orden;
