@@ -17,6 +17,7 @@ type OrdenCompra = {
   estatus: string;
   comentarios: string;
   actividades: {
+    id: string;
     descripcion: string;
     completada: boolean;
   }[];
@@ -26,6 +27,17 @@ function calcularProgreso(orden: OrdenCompra) {
   if (orden.actividades.length === 0) return 0;
   const terminadas = orden.actividades.filter((a) => a.completada).length;
   return Math.round((terminadas / orden.actividades.length) * 100);
+}
+
+function estatusAutomatico(orden: OrdenCompra) {
+  if (orden.estatus === "Cancelada") return "Cancelada";
+
+  const progreso = calcularProgreso(orden);
+
+  if (progreso === 0) return "Abierta";
+  if (progreso === 100) return "Terminada";
+
+  return "En proceso";
 }
 
 function formatearMoneda(monto: number, moneda: Moneda) {
@@ -40,6 +52,8 @@ export default function OperacionesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ordenSeleccionada, setOrdenSeleccionada] =
+    useState<OrdenCompra | null>(null);
+  const [ordenEditando, setOrdenEditando] =
     useState<OrdenCompra | null>(null);
 
   const [fecha, setFecha] = useState("");
@@ -92,6 +106,7 @@ export default function OperacionesPage() {
               actividad.orden_id === orden.id
           )
           .map((actividad: any) => ({
+            id: actividad.id,
             descripcion: actividad.descripcion,
             completada: actividad.completada,
           })),
@@ -108,7 +123,7 @@ export default function OperacionesPage() {
   const ordenesFiltradas = useMemo(() => {
     return ordenes.filter((orden) => {
       const texto =
-        `${orden.cliente} ${orden.planta} ${orden.numeroOC} ${orden.actividadPrincipal} ${orden.estatus}`.toLowerCase();
+        `${orden.cliente} ${orden.planta} ${orden.numeroOC} ${orden.actividadPrincipal} ${estatusAutomatico(orden)}`.toLowerCase();
 
       return texto.includes(busqueda.toLowerCase());
     });
@@ -133,81 +148,213 @@ export default function OperacionesPage() {
       return;
     }
 
-    const { data: ordenGuardada, error: errorOrden } = await supabase
-      .from("ordenes_compra")
-      .insert({
-        fecha: fecha || new Date().toISOString().slice(0, 10),
-        cliente,
-        planta: planta || null,
-        numero_oc: numeroOC,
-        actividad_principal: actividadPrincipal,
-        monto: Number(monto) || 0,
-        moneda,
-        estatus,
-        comentarios: comentarios || null,
-      })
-      .select()
-      .single();
+    const datosOrden = {
+      fecha: fecha || new Date().toISOString().slice(0, 10),
+      cliente,
+      planta: planta || null,
+      numero_oc: numeroOC,
+      actividad_principal: actividadPrincipal,
+      monto: Number(monto) || 0,
+      moneda,
+      estatus,
+      comentarios: comentarios || null,
+    };
 
-    if (errorOrden) {
-      alert("Error al guardar OC: " + errorOrden.message);
-      return;
-    }
+    if (ordenEditando) {
+      const { error: errorActualizar } = await supabase
+        .from("ordenes_compra")
+        .update(datosOrden)
+        .eq("id", ordenEditando.id);
 
-    const actividades = actividadesTexto
-      .split("\n")
-      .map((linea) => linea.trim())
-      .filter(Boolean)
-      .map((descripcion) => ({
-        orden_id: ordenGuardada.id,
-        descripcion,
-        completada: false,
-      }));
-
-    if (actividades.length > 0) {
-      const { error: errorActividades } = await supabase
-        .from("ordenes_compra_actividades")
-        .insert(actividades);
-
-      if (errorActividades) {
-        alert("La OC se guardó, pero falló el checklist: " + errorActividades.message);
+      if (errorActualizar) {
+        alert("Error al actualizar OC: " + errorActualizar.message);
         return;
+      }
+
+      await supabase
+        .from("ordenes_compra_actividades")
+        .delete()
+        .eq("orden_id", ordenEditando.id);
+
+      const actividades = actividadesTexto
+        .split("\n")
+        .map((linea) => linea.trim())
+        .filter(Boolean)
+        .map((descripcion) => ({
+          orden_id: ordenEditando.id,
+          descripcion,
+          completada: false,
+        }));
+
+      if (actividades.length > 0) {
+        const { error: errorActividades } = await supabase
+          .from("ordenes_compra_actividades")
+          .insert(actividades);
+
+        if (errorActividades) {
+          alert("La OC se actualizó, pero falló el checklist: " + errorActividades.message);
+          return;
+        }
+      }
+    } else {
+      const { data: ordenGuardada, error: errorOrden } = await supabase
+        .from("ordenes_compra")
+        .insert(datosOrden)
+        .select()
+        .single();
+
+      if (errorOrden) {
+        alert("Error al guardar OC: " + errorOrden.message);
+        return;
+      }
+
+      const actividades = actividadesTexto
+        .split("\n")
+        .map((linea) => linea.trim())
+        .filter(Boolean)
+        .map((descripcion) => ({
+          orden_id: ordenGuardada.id,
+          descripcion,
+          completada: false,
+        }));
+
+      if (actividades.length > 0) {
+        const { error: errorActividades } = await supabase
+          .from("ordenes_compra_actividades")
+          .insert(actividades);
+
+        if (errorActividades) {
+          alert("La OC se guardó, pero falló el checklist: " + errorActividades.message);
+          return;
+        }
       }
     }
 
     limpiarFormulario();
+    setOrdenEditando(null);
+    setOrdenSeleccionada(null);
     setModalAbierto(false);
     cargarOrdenes();
   }
 
-  function cambiarActividad(ordenId: string, actividadIndex: number) {
+  async function cambiarActividad(
+    ordenId: string,
+    actividadIndex: number
+  ) {
+    const orden = ordenes.find(
+      (item) => item.id === ordenId
+    );
+
+    if (!orden) return;
+
+    const actividad = orden.actividades[actividadIndex];
+
+    if (!actividad) return;
+
+    const nuevoValor = !actividad.completada;
+
+    const { error } = await supabase
+      .from("ordenes_compra_actividades")
+      .update({
+        completada: nuevoValor,
+      })
+      .eq("id", actividad.id);
+
+    if (error) {
+      alert(
+        "Error al actualizar actividad: " +
+          error.message
+      );
+      return;
+    }
+
     setOrdenes((actuales) =>
       actuales.map((orden) => {
         if (orden.id !== ordenId) return orden;
 
         return {
           ...orden,
-          actividades: orden.actividades.map((actividad, index) =>
-            index === actividadIndex
-              ? { ...actividad, completada: !actividad.completada }
-              : actividad
+          actividades: orden.actividades.map(
+            (actividad, index) =>
+              index === actividadIndex
+                ? {
+                    ...actividad,
+                    completada: nuevoValor,
+                  }
+                : actividad
           ),
         };
       })
     );
 
     setOrdenSeleccionada((actual) => {
-      if (!actual || actual.id !== ordenId) return actual;
+      if (!actual || actual.id !== ordenId)
+        return actual;
 
       return {
         ...actual,
-        actividades: actual.actividades.map((actividad, index) =>
-          index === actividadIndex
-            ? { ...actividad, completada: !actividad.completada }
-            : actividad
+        actividades: actual.actividades.map(
+          (actividad, index) =>
+            index === actividadIndex
+              ? {
+                  ...actividad,
+                  completada: nuevoValor,
+                }
+              : actividad
         ),
       };
     });
+  }
+
+  async function eliminarOrden() {
+    if (!ordenSeleccionada) return;
+
+    const confirmar = confirm(
+      `¿Eliminar la OC ${ordenSeleccionada.numeroOC}?`
+    );
+
+    if (!confirmar) return;
+
+    await supabase
+      .from("ordenes_compra_actividades")
+      .delete()
+      .eq("orden_id", ordenSeleccionada.id);
+
+    const { error } = await supabase
+      .from("ordenes_compra")
+      .delete()
+      .eq("id", ordenSeleccionada.id);
+
+    if (error) {
+      alert("Error al eliminar OC: " + error.message);
+      return;
+     }
+
+     setOrdenSeleccionada(null);
+    cargarOrdenes();
+  }
+
+  async function cancelarOrden() {
+    if (!ordenSeleccionada) return;
+
+    const confirmar = confirm(
+      `¿Cancelar la OC ${ordenSeleccionada.numeroOC}?`
+    );
+
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from("ordenes_compra")
+      .update({ estatus: "Cancelada" })
+      .eq("id", ordenSeleccionada.id);
+
+    if (error) {
+      alert("Error al cancelar OC: " + error.message);
+      return;
+    }
+
+    setOrdenSeleccionada(null);
+    cargarOrdenes();
   }
 
   return (
@@ -287,9 +434,19 @@ export default function OperacionesPage() {
                     {formatearMoneda(orden.monto, orden.moneda)}
                   </p>
 
-                  <p className="mt-1 text-xs text-stone-500">
-                    {orden.estatus}
-                  </p>
+                  <span
+                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                      estatusAutomatico(orden) === "Abierta"
+                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                        : estatusAutomatico(orden) === "En proceso"
+                        ? "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                        : estatusAutomatico(orden) === "Terminada"
+                        ? "bg-green-50 text-green-700 border border-green-200"
+                        : "bg-red-50 text-red-700 border border-red-200"
+                    }`}
+                  >
+                    {estatusAutomatico(orden)}
+                  </span>
                 </div>
               </div>
 
@@ -324,12 +481,58 @@ export default function OperacionesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setOrdenSeleccionada(null)}
-          className="rounded-lg border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-stone-50"
-        >
-          Cerrar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setOrdenEditando(ordenSeleccionada);
+
+              setFecha(ordenSeleccionada.fecha);
+              setCliente(ordenSeleccionada.cliente);
+              setPlanta(ordenSeleccionada.planta);
+              setNumeroOC(ordenSeleccionada.numeroOC);
+              setActividadPrincipal(
+                ordenSeleccionada.actividadPrincipal
+              );
+              setMonto(String(ordenSeleccionada.monto));
+              setMoneda(ordenSeleccionada.moneda);
+              setComentarios(
+                ordenSeleccionada.comentarios || ""
+              );
+
+              setActividadesTexto(
+                ordenSeleccionada.actividades
+                  .map((actividad) => actividad.descripcion)
+                  .join("\n")
+              );
+
+              setModalAbierto(true);
+            }}
+            className="rounded-lg border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-blue-50 hover:text-blue-700"
+          >
+            Editar
+          </button>
+
+          <button
+            onClick={cancelarOrden}
+            className="rounded-lg border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-orange-50 hover:text-orange-700"
+          >
+            Cancelar
+          </button>
+
+          <button
+            onClick={eliminarOrden}
+            className="rounded-lg border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-red-50 hover:text-red-700"
+          >
+            Eliminar
+          </button>
+
+          <button
+            onClick={() => setOrdenSeleccionada(null)}
+            className="rounded-lg border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-stone-50"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 rounded-lg bg-stone-50 p-4">
@@ -338,7 +541,19 @@ export default function OperacionesPage() {
         </p>
         <p className="mt-1 text-sm text-stone-500">
           {formatearMoneda(ordenSeleccionada.monto, ordenSeleccionada.moneda)} ·{" "}
-          {ordenSeleccionada.estatus}
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+              estatusAutomatico(ordenSeleccionada) === "Abierta"
+                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                : estatusAutomatico(ordenSeleccionada) === "En proceso"
+                ? "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                : estatusAutomatico(ordenSeleccionada) === "Terminada"
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}
+          >
+            {estatusAutomatico(ordenSeleccionada)}
+          </span>
         </p>
       </div>
 
