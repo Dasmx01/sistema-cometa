@@ -306,16 +306,19 @@ export default function DashboardPage() {
                   </button>
 
                   {totalEventos > 0 && (
-                    <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-64 rounded-xl border border-stone-200 bg-white p-3 text-left shadow-lg group-hover:block">
+                    <div className="absolute left-0 top-full z-50 mt-2 hidden w-64 rounded-xl border border-stone-200 bg-white p-3 text-left shadow-lg group-hover:block">
                       <p className="mb-2 text-xs font-semibold text-stone-700">
                         Día {dia} · {totalEventos} actividad{totalEventos === 1 ? "" : "es"}
                       </p>
 
                       {trabajosEventos.length > 0 && (
                        <div className="mb-3">
-                          <p className="mb-1 text-[11px] font-medium text-stone-500">
-                            Programa de trabajo
-                          </p>
+                          <Link
+                            href="/programa-trabajo"
+                            className="mb-1 block text-[11px] font-medium text-blue-600 hover:underline"
+                          >
+                            Programa de trabajo →
+                          </Link>
 
                           <div className="space-y-1">
                             {trabajosEventos.slice(0, 6).map((trabajo) => (
@@ -332,9 +335,12 @@ export default function DashboardPage() {
 
                       {mantenimientosEventos.length > 0 && (
                         <div>
-                          <p className="mb-1 text-[11px] font-medium text-stone-500">
-                            Mantenimientos
-                          </p>
+                          <Link
+                            href="/activos/mantenimientos"
+                            className="mb-1 block text-[11px] font-medium text-blue-600 hover:underline"
+                          >
+                            Mantenimientos →
+                          </Link>
 
                           <div className="space-y-1">
                             {mantenimientosEventos.slice(0, 6).map((evento) => {

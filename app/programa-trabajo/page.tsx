@@ -23,7 +23,13 @@ type TrabajoDia = {
 };
 
 function fechaHoy() {
-  return new Date().toISOString().split("T")[0];
+  const hoy = new Date();
+
+  hoy.setMinutes(
+    hoy.getMinutes() - hoy.getTimezoneOffset()
+  );
+
+  return hoy.toISOString().split("T")[0];
 }
 
 function badgeEstatus(estatus: EstatusTrabajo) {
