@@ -47,9 +47,19 @@ function formatearMoneda(monto: number, moneda: Moneda) {
   }).format(monto);
 }
 
+function formatearFecha(fecha: string) {
+  return new Date(fecha).toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function OperacionesPage() {
   const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [filtroEstatus, setFiltroEstatus] =
+    useState("Todos");
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ordenSeleccionada, setOrdenSeleccionada] =
     useState<OrdenCompra | null>(null);
@@ -125,9 +135,16 @@ export default function OperacionesPage() {
       const texto =
         `${orden.cliente} ${orden.planta} ${orden.numeroOC} ${orden.actividadPrincipal} ${estatusAutomatico(orden)}`.toLowerCase();
 
-      return texto.includes(busqueda.toLowerCase());
+      const coincideBusqueda =
+        texto.includes(busqueda.toLowerCase());
+
+      const coincideEstatus =
+        filtroEstatus === "Todos" ||
+        estatusAutomatico(orden) === filtroEstatus;
+
+      return coincideBusqueda && coincideEstatus;
     });
-  }, [busqueda, ordenes]);
+  }, [busqueda, ordenes, filtroEstatus]);
 
   function limpiarFormulario() {
     setFecha("");
@@ -385,12 +402,16 @@ export default function OperacionesPage() {
           className="w-2/3 rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 outline-none focus:border-slate-400"
         />
 
-        <select className="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 outline-none focus:border-slate-400">
-          <option>Todos los estatus</option>
+        <select
+          value={filtroEstatus}
+          onChange={(e) => setFiltroEstatus(e.target.value)}
+          className="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 outline-none focus:border-slate-400"
+        >
+          <option>Todos</option>
           <option>Abierta</option>
           <option>En proceso</option>
           <option>Terminada</option>
-          <option>Reprogramada</option>
+          <option>Cancelada</option>
         </select>
       </div>
 
@@ -425,7 +446,7 @@ export default function OperacionesPage() {
                   </p>
 
                   <p className="mt-2 text-xs text-stone-400">
-                    Fecha: {orden.fecha}
+                    Fecha: {formatearFecha(orden.fecha)}
                   </p>
                 </div>
 
@@ -611,7 +632,7 @@ export default function OperacionesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-lg">
             <h2 className="text-xl font-semibold text-stone-800">
-              Nueva Orden de Compra
+              {ordenEditando ? "Editar Orden de Compra" : "Nueva Orden de Compra"}
             </h2>
 
             <p className="mt-1 text-sm text-stone-500">
@@ -714,7 +735,7 @@ export default function OperacionesPage() {
                 onClick={guardarOrden}
                 className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
-                Guardar
+                {ordenEditando ? "Guardar cambios" : "Guardar"}
               </button>
             </div>
           </div>
