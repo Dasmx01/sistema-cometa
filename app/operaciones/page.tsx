@@ -188,28 +188,35 @@ export default function OperacionesPage() {
         return;
       }
 
-      await supabase
-        .from("ordenes_compra_actividades")
-        .delete()
-        .eq("orden_id", ordenEditando.id);
+      const actividadesActuales = ordenEditando.actividades.map(
+        (actividad) => actividad.descripcion.trim()
+      );
 
-      const actividades = actividadesTexto
+      const actividadesNuevas = actividadesTexto
         .split("\n")
         .map((linea) => linea.trim())
-        .filter(Boolean)
+        .filter(Boolean);
+
+      const actividadesParaInsertar = actividadesNuevas
+        .filter(
+          (descripcion) => !actividadesActuales.includes(descripcion)
+        )
         .map((descripcion) => ({
           orden_id: ordenEditando.id,
           descripcion,
           completada: false,
         }));
 
-      if (actividades.length > 0) {
+      if (actividadesParaInsertar.length > 0) {
         const { error: errorActividades } = await supabase
           .from("ordenes_compra_actividades")
-          .insert(actividades);
+          .insert(actividadesParaInsertar);
 
         if (errorActividades) {
-          alert("La OC se actualizó, pero falló el checklist: " + errorActividades.message);
+          alert(
+            "La OC se actualizó, pero falló al agregar actividades nuevas: " +
+              errorActividades.message
+          );
           return;
         }
       }
