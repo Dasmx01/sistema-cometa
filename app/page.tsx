@@ -25,10 +25,16 @@ type Trabajo = {
   cliente: string | null;
 };
 
+type OrdenCompra = {
+  id: string;
+  estatus: string | null;
+};
+
 export default function DashboardPage() {
   const [activos, setActivos] = useState<Activo[]>([]);
   const [mantenimientos, setMantenimientos] = useState<Mantenimiento[]>([]);
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
+  const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
   const [cargando, setCargando] = useState(true);
 
   const fechaActual = new Date();
@@ -69,9 +75,20 @@ export default function DashboardPage() {
       return;
     }
 
+    const { data: ordenesData, error: ordenesError } = await supabase
+      .from("ordenes_compra")
+      .select("id, estatus");
+
+    if (ordenesError) {
+      alert("Error al cargar órdenes de compra: " + ordenesError.message);
+      setCargando(false);
+      return;
+    }
+
     setActivos((activosData || []) as Activo[]);
     setMantenimientos((mantenimientosData || []) as Mantenimiento[]);
     setTrabajos((trabajosData || []) as Trabajo[]);
+    setOrdenesCompra((ordenesData || []) as OrdenCompra[]);
     setCargando(false);
   }
 
@@ -101,6 +118,16 @@ export default function DashboardPage() {
     return fecha.getTime() === hoy.getTime();
   });
 
+  const ocAbiertas = ordenesCompra.filter(
+    (orden) =>
+      orden.estatus === "Abierta" ||
+      orden.estatus === "En proceso"
+  );
+
+  const ocTerminadas = ordenesCompra.filter(
+    (orden) => orden.estatus === "Terminada"
+  );
+
   const tarjetas = [
     {
       titulo: "Materiales bajos",
@@ -114,12 +141,12 @@ export default function DashboardPage() {
     },
     {
       titulo: "OC abiertas",
-      valor: "0",
+      valor: String(ocAbiertas.length),
       href: "/operaciones",
     },
     {
       titulo: "OC terminadas",
-      valor: "0",
+      valor: String(ocTerminadas.length),
       href: "/operaciones",
     },
     {
@@ -243,42 +270,97 @@ export default function DashboardPage() {
                 mantenimientosEventos.length + trabajosEventos.length;
 
               return (
-                <button
-                  key={dia}
-                  className="min-h-[82px] overflow-hidden rounded-lg border border-stone-200 px-1.5 pt-0.5 pb-2 text-left transition hover:border-stone-400 hover:bg-stone-50"
-                >
-                  <div className="flex items-start justify-start">
-                    <span className="text-sm font-medium leading-none text-stone-700">
-                      {dia}
-                    </span>
-                  </div>
+                <div key={dia} className="group relative">
+                  <button className="min-h-[82px] w-full overflow-hidden rounded-lg border border-stone-200 px-1.5 pt-0.5 pb-2 text-left transition hover:border-stone-400 hover:bg-stone-50">
+                    <div className="flex items-start justify-start">
+                      <span className="text-sm font-medium leading-none text-stone-700">
+                        {dia}
+                      </span>
+                    </div>
 
-                  <div className="mt-2 space-y-1 text-[10px] leading-tight text-stone-500">
-                    {mantenimientosEventos.slice(0, 2).map((evento) => {
-                      const activo = obtenerActivo(evento.activo_id);
+                    <div className="mt-2 space-y-1 text-[10px] leading-tight text-stone-500">
+                      {mantenimientosEventos.slice(0, 2).map((evento) => {
+                        const activo = obtenerActivo(evento.activo_id);
 
-                      return (
-                        <div key={evento.id} className="truncate">
-                          {activo?.codigo_activo || ""} {evento.tipo}
+                        return (
+                          <div key={evento.id} className="truncate">
+                            {activo?.codigo_activo || ""} {evento.tipo}
+                          </div>
+                        );
+                      })}
+
+                      {trabajosEventos
+                        .slice(0, Math.max(0, 2 - mantenimientosEventos.length))
+                        .map((trabajo) => (
+                          <div key={trabajo.id} className="truncate">
+                            {textoTrabajo(trabajo)}
+                          </div>
+                        ))}
+
+                      {totalEventos > 2 && (
+                        <div className="truncate text-stone-400">
+                          +{totalEventos - 2} más
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+                  </button>
 
-                    {trabajosEventos
-                      .slice(0, Math.max(0, 2 - mantenimientosEventos.length))
-                      .map((trabajo) => (
-                        <div key={trabajo.id} className="truncate">
-                          {textoTrabajo(trabajo)}
+                  {totalEventos > 0 && (
+                    <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-64 rounded-xl border border-stone-200 bg-white p-3 text-left shadow-lg group-hover:block">
+                      <p className="mb-2 text-xs font-semibold text-stone-700">
+                        Día {dia} · {totalEventos} actividad{totalEventos === 1 ? "" : "es"}
+                      </p>
+
+                      {trabajosEventos.length > 0 && (
+                       <div className="mb-3">
+                          <p className="mb-1 text-[11px] font-medium text-stone-500">
+                            Programa de trabajo
+                          </p>
+
+                          <div className="space-y-1">
+                            {trabajosEventos.slice(0, 6).map((trabajo) => (
+                              <div
+                                key={trabajo.id}
+                                className="rounded-lg bg-stone-50 px-2 py-1 text-[11px] text-stone-700"
+                              >
+                                {textoTrabajo(trabajo)}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
+                      )}
 
-                    {totalEventos > 2 && (
-                      <div className="truncate text-stone-400">
-                        +{totalEventos - 2} más
-                      </div>
-                    )}
-                  </div>
-                </button>
+                      {mantenimientosEventos.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-medium text-stone-500">
+                            Mantenimientos
+                          </p>
+
+                          <div className="space-y-1">
+                            {mantenimientosEventos.slice(0, 6).map((evento) => {
+                              const activo = obtenerActivo(evento.activo_id);
+
+                              return (
+                                <div
+                                  key={evento.id}
+                                  className="rounded-lg bg-stone-50 px-2 py-1 text-[11px] text-stone-700"
+                                >
+                                  {activo?.codigo_activo || "Activo"} {evento.tipo}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {totalEventos > 6 && (
+                        <p className="mt-2 text-[11px] text-stone-400">
+                          +{totalEventos - 6} más
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

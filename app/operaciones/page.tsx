@@ -73,7 +73,6 @@ export default function OperacionesPage() {
   const [actividadPrincipal, setActividadPrincipal] = useState("");
   const [monto, setMonto] = useState("");
   const [moneda, setMoneda] = useState<Moneda>("MXN");
-  const [estatus, setEstatus] = useState("Abierta");
   const [comentarios, setComentarios] = useState("");
   const [actividadesTexto, setActividadesTexto] = useState("");
 
@@ -154,7 +153,6 @@ export default function OperacionesPage() {
     setActividadPrincipal("");
     setMonto("");
     setMoneda("MXN");
-    setEstatus("Abierta");
     setComentarios("");
     setActividadesTexto("");
   }
@@ -173,7 +171,6 @@ export default function OperacionesPage() {
       actividad_principal: actividadPrincipal,
       monto: Number(monto) || 0,
       moneda,
-      estatus,
       comentarios: comentarios || null,
     };
 
@@ -223,7 +220,10 @@ export default function OperacionesPage() {
     } else {
       const { data: ordenGuardada, error: errorOrden } = await supabase
         .from("ordenes_compra")
-        .insert(datosOrden)
+        .insert({
+          ...datosOrden,
+          estatus: "Abierta",
+        })
         .select()
         .single();
 
@@ -328,6 +328,49 @@ export default function OperacionesPage() {
         ),
       };
     });
+
+        const ordenActualizada = ordenes.find(
+          (item) => item.id === ordenId
+        );
+
+        if (ordenActualizada) {
+          const total =
+            ordenActualizada.actividades.length;
+
+          const completadas =
+            ordenActualizada.actividades.filter(
+              (actividad, index) =>
+                index === actividadIndex
+                  ? nuevoValor
+                  : actividad.completada
+            ).length;
+
+          const porcentaje =
+            total === 0
+              ? 0
+              : Math.round(
+                (completadas / total) * 100
+              );
+
+          let nuevoEstatus = "Abierta";
+
+          if (porcentaje === 100) {
+            nuevoEstatus = "Terminada";
+          } else if (porcentaje > 0) {
+            nuevoEstatus = "En proceso";
+          }
+
+          if (orden.estatus !== "Cancelada") {
+            await supabase
+              .from("ordenes_compra")
+              .update({
+                estatus: nuevoEstatus,
+              })
+              .eq("id", ordenId);
+          }
+        }
+
+        cargarOrdenes();
   }
 
   async function eliminarOrden() {
@@ -426,6 +469,14 @@ export default function OperacionesPage() {
         {ordenesFiltradas.map((orden) => {
           const progreso = calcularProgreso(orden);
 
+          const actividadesTerminadas =
+            orden.actividades.filter(
+              (actividad) => actividad.completada
+            ).length;
+
+          const totalActividades =
+            orden.actividades.length;
+
           return (
             <div
               key={orden.id}
@@ -480,7 +531,10 @@ export default function OperacionesPage() {
 
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between text-xs text-stone-500">
-                  <span>Avance</span>
+                  <span>
+                    Avance · {actividadesTerminadas}/{totalActividades} actividades
+                  </span>
+
                   <span>{progreso}%</span>
                 </div>
 
@@ -700,17 +754,6 @@ export default function OperacionesPage() {
                 className="col-span-2 rounded-lg border border-stone-200 px-4 py-2 text-sm"
                 placeholder="Actividad principal"
               />
-
-              <select
-                value={estatus}
-                onChange={(e) => setEstatus(e.target.value)}
-                className="col-span-2 rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700"
-              >
-                <option>Abierta</option>
-                <option>En proceso</option>
-                <option>Terminada</option>
-                <option>Reprogramada</option>
-              </select>
 
               <textarea
                 value={actividadesTexto}
