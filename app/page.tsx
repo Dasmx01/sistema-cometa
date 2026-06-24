@@ -37,9 +37,12 @@ export default function DashboardPage() {
   const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  const fechaActual = new Date();
-  const year = fechaActual.getFullYear();
-  const month = fechaActual.getMonth();
+  const [fechaCalendario, setFechaCalendario] = useState(
+    new Date()
+  );
+
+  const year = fechaCalendario.getFullYear();
+  const month = fechaCalendario.getMonth();
 
   async function cargarDatos() {
     setCargando(true);
@@ -186,15 +189,11 @@ export default function DashboardPage() {
   }
 
   function trabajosDelDia(dia: number) {
-    return trabajos.filter((trabajo) => {
-      const fecha = new Date(trabajo.fecha);
+    const fechaBuscada = `${year}-${String(month + 1).padStart(2, "0")}-${String(
+      dia
+    ).padStart(2, "0")}`;
 
-      return (
-        fecha.getFullYear() === year &&
-        fecha.getMonth() === month &&
-        fecha.getDate() === dia
-      );
-    });
+    return trabajos.filter((trabajo) => trabajo.fecha === fechaBuscada);
   }
 
   function textoTrabajo(trabajo: Trabajo) {
@@ -238,14 +237,38 @@ export default function DashboardPage() {
 
         <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() =>
+                setFechaCalendario(
+                  new Date(year, month - 1, 1)
+                )
+              }
+              className="rounded border border-stone-200 px-2 py-1 text-sm hover:bg-stone-50"
+            >
+              ←
+            </button>
+
             <h2 className="capitalize text-xl font-semibold text-stone-800">
-              {nombreMes}
+              {nombreMes} {year}
             </h2>
 
-            <span className="text-xs text-stone-500">
-              Calendario Operativo
-            </span>
+            <button
+              onClick={() =>
+                setFechaCalendario(
+                  new Date(year, month + 1, 1)
+                )
+              }
+              className="rounded border border-stone-200 px-2 py-1 text-sm hover:bg-stone-50"
+            >
+              →
+            </button>
           </div>
+
+          <span className="text-xs text-stone-500">
+            Calendario Operativo
+          </span>
+        </div>
 
           <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-medium text-stone-500">
             <div>Lun</div>
@@ -268,6 +291,10 @@ export default function DashboardPage() {
 
               const totalEventos =
                 mantenimientosEventos.length + trabajosEventos.length;
+
+              const fechaSeleccionada = `${year}-${String(
+                month + 1
+              ).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 
               return (
                 <div key={dia} className="group relative">
@@ -314,7 +341,7 @@ export default function DashboardPage() {
                       {trabajosEventos.length > 0 && (
                        <div className="mb-3">
                           <Link
-                            href="/programa-trabajo"
+                            href={`/programa-trabajo?fecha=${fechaSeleccionada}`}
                             className="mb-1 block text-[11px] font-medium text-blue-600 hover:underline"
                           >
                             Programa de trabajo →
@@ -336,7 +363,7 @@ export default function DashboardPage() {
                       {mantenimientosEventos.length > 0 && (
                         <div>
                           <Link
-                            href="/activos/mantenimientos"
+                            href={`/activos/mantenimientos?fecha=${fechaSeleccionada}`}
                             className="mb-1 block text-[11px] font-medium text-blue-600 hover:underline"
                           >
                             Mantenimientos →

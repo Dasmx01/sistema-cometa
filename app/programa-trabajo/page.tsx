@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type EstatusTrabajo = "En Proceso" | "Continuará" | "Terminado" | "Reprogramar";
@@ -49,11 +50,14 @@ function badgeEstatus(estatus: EstatusTrabajo) {
 }
 
 export default function ProgramaTrabajoPage() {
+  const searchParams = useSearchParams();
+
   const [trabajos, setTrabajos] = useState<TrabajoDia[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
   const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [trabajoEditando, setTrabajoEditando] = useState<TrabajoDia | null>(
     null
   );
@@ -108,6 +112,15 @@ export default function ProgramaTrabajoPage() {
   useEffect(() => {
     cargarTrabajos();
   }, []);
+
+  useEffect(() => {
+    const fechaUrl = searchParams.get("fecha");
+
+    if (fechaUrl) {
+      setFechaFiltro(fechaUrl);
+     setFecha(fechaUrl);
+    }
+  }, [searchParams]);
 
   const trabajosFiltrados = useMemo(() => {
     return trabajos.filter((trabajo) => {
@@ -182,74 +195,90 @@ export default function ProgramaTrabajoPage() {
   }
 
   async function guardarTrabajo() {
+    if (guardando) return;
+
     if (!fecha || !descripcionServicio.trim()) {
       alert("Fecha y descripción del servicio son obligatorios.");
       return;
     }
 
-    const datos = {
-      fecha,
-     rs,
-      orden_compra: ordenCompra || null,
-      cliente: cliente || null,
-      descripcion_servicio: descripcionServicio,
-      estatus,
-      tecnico: tecnico || null,
-      ayudantes: ayudantes || null,
-      radio: radio || null,
-      vehiculo: vehiculo || null,
-      notas: notas || null,
-      personal_taller: personalTaller || null,
-      incidencias: incidencias || null,
-    };
+    setGuardando(true);
 
-    if (trabajoEditando) {
-      const { error } = await supabase
-        .from("programa_trabajo")
-        .update(datos)
-        .eq("id", trabajoEditando.id);
+    try {
+      const datos = {
+        fecha,
+        rs,
+        orden_compra: ordenCompra || null,
+        cliente: cliente || null,
+        descripcion_servicio: descripcionServicio,
+        estatus,
+        tecnico: tecnico || null,
+        ayudantes: ayudantes || null,
+        radio: radio || null,
+        vehiculo: vehiculo || null,
+        notas: notas || null,
+        personal_taller: personalTaller || null,
+        incidencias: incidencias || null,
+      };
 
-      if (error) {
-        alert(error.message);
-        return;
+      if (trabajoEditando) {
+        const { error } = await supabase
+          .from("programa_trabajo")
+          .update(datos)
+          .eq("id", trabajoEditando.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("programa_trabajo")
+          .insert(datos);
+
+        if (error) throw error;
       }
-    } else {
-      const { error } = await supabase
-        .from("programa_trabajo")
-        .insert(datos);
 
-      if (error) {
-        alert(error.message);
-        return;
-      }
+      await cargarTrabajos();
+
+      limpiarFormulario();
+      setModalAbierto(false);
+    } catch (error: any) {
+      alert("Error al guardar actividad: " + error.message);
+    } finally {
+      setGuardando(false);
     }
-
-    await cargarTrabajos();
-
-    limpiarFormulario();
-    setModalAbierto(false);
   }
 
-  function eliminarTrabajo(trabajo: TrabajoDia) {
+  async function eliminarTrabajo(trabajo: TrabajoDia) {
     const confirmar = confirm(
-        `¿Eliminar esta actividad?\n\n${trabajo.cliente || "Sin cliente"}\n${
-          trabajo.descripcionServicio
-        }`
+      `¿Eliminar esta actividad?\n\n${trabajo.cliente || "Sin cliente"}\n${trabajo.descripcionServicio}`
     );
 
     if (!confirmar) return;
 
-    setTrabajos((actuales) =>
-      actuales.filter((item) => item.id !== trabajo.id)
-    );
+    const { error } = await supabase
+      .from("programa_trabajo")
+      .delete()
+      .eq("id", trabajo.id);
+
+    if (error) {
+      alert("Error al eliminar actividad: " + error.message);
+      return;
+    }
+
+    await cargarTrabajos();
   }
 
-  function cambiarEstatusDirecto(id: string, nuevoEstatus: EstatusTrabajo) {
-    setTrabajos((actuales) =>
-      actuales.map((trabajo) =>
-        trabajo.id === id ? { ...trabajo, estatus: nuevoEstatus } : trabajo
-      )
-    );
+  async function cambiarEstatusDirecto(id: string, nuevoEstatus: EstatusTrabajo) {
+    const { error } = await supabase
+      .from("programa_trabajo")
+      .update({ estatus: nuevoEstatus })
+      .eq("id", id);
+
+    if (error) {
+      alert("Error al actualizar estatus: " + error.message);
+      return;
+    }
+
+    await cargarTrabajos();
   }
 
   return (
@@ -635,9 +664,14 @@ export default function ProgramaTrabajoPage() {
 
               <button
                 onClick={guardarTrabajo}
-                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                disabled={guardando}
+                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {trabajoEditando ? "Guardar cambios" : "Guardar"}
+                {guardando
+                  ? "Guardando..."
+                  : trabajoEditando
+                  ? "Guardar cambios"
+                  : "Guardar"}
               </button>
             </div>
           </div>
