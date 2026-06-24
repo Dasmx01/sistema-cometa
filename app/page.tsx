@@ -296,9 +296,25 @@ export default function DashboardPage() {
                 month + 1
               ).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 
+              const hoyLocal = new Date();
+
+              hoyLocal.setMinutes(
+                hoyLocal.getMinutes() - hoyLocal.getTimezoneOffset()
+              );
+
+              const hoyTexto = hoyLocal.toISOString().split("T")[0];
+
+              const esHoy = fechaSeleccionada === hoyTexto;
+
               return (
                 <div key={dia} className="group relative">
-                  <button className="min-h-[82px] w-full overflow-hidden rounded-lg border border-stone-200 px-1.5 pt-0.5 pb-2 text-left transition hover:border-stone-400 hover:bg-stone-50">
+                  <button
+                    className={`min-h-[82px] w-full overflow-hidden rounded-lg border px-1.5 pt-0.5 pb-2 text-left transition hover:border-stone-400 hover:bg-stone-50 ${
+                      esHoy
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-stone-200"
+                    }`}
+                  >
                     <div className="flex items-start justify-start">
                       <span className="text-sm font-medium leading-none text-stone-700">
                         {dia}

@@ -23,6 +23,12 @@ type TrabajoDia = {
   incidencias: string;
 };
 
+type OrdenCompra = {
+  id: string;
+  numeroOC: string;
+  cliente: string;
+};
+
 function fechaHoy() {
   const hoy = new Date();
 
@@ -53,6 +59,7 @@ export default function ProgramaTrabajoPage() {
   const searchParams = useSearchParams();
 
   const [trabajos, setTrabajos] = useState<TrabajoDia[]>([]);
+  const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
   const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
@@ -61,6 +68,8 @@ export default function ProgramaTrabajoPage() {
   const [trabajoEditando, setTrabajoEditando] = useState<TrabajoDia | null>(
     null
   );
+  const [trabajoSeleccionado, setTrabajoSeleccionado] =
+  useState<TrabajoDia | null>(null);
 
   const [fecha, setFecha] = useState(fechaHoy());
   const [rs, setRs] = useState("Cometa");
@@ -109,16 +118,34 @@ export default function ProgramaTrabajoPage() {
     setTrabajos(trabajosFormateados);
   }
 
-  useEffect(() => {
-    cargarTrabajos();
-  }, []);
+  async function cargarOrdenesCompra() {
+    const { data, error } = await supabase
+      .from("ordenes_compra")
+      .select("id, numero_oc, cliente");
+
+    if (error) {
+      alert("Error al cargar órdenes de compra: " + error.message);
+      return;
+    }
+
+    const ordenesFormateadas: OrdenCompra[] = (data || []).map((orden: any) => ({
+      id: orden.id,
+      numeroOC: orden.numero_oc,
+      cliente: orden.cliente || "",
+    }));
+
+    setOrdenesCompra(ordenesFormateadas);
+  }
 
   useEffect(() => {
+    cargarTrabajos();
+    cargarOrdenesCompra();
+
     const fechaUrl = searchParams.get("fecha");
 
     if (fechaUrl) {
       setFechaFiltro(fechaUrl);
-     setFecha(fechaUrl);
+      setFecha(fechaUrl);
     }
   }, [searchParams]);
 
@@ -367,7 +394,18 @@ export default function ProgramaTrabajoPage() {
             {trabajosFiltrados.map((trabajo) => (
               <tr
                 key={trabajo.id}
-                className="border-b border-stone-100 text-stone-700 last:border-0 hover:bg-stone-50"
+                onClick={() => {
+                  const existeOC = ordenesCompra.some(
+                    (orden) => orden.numeroOC === trabajo.ordenCompra
+                  );
+
+                  if (existeOC) {
+                    setTrabajoSeleccionado(trabajo);
+                  }
+                }}
+                className={`border-b border-stone-100 text-stone-700 last:border-0 hover:bg-stone-50 ${
+                  trabajo.ordenCompra ? "cursor-pointer" : ""
+                }`}
               >
                 <td className="whitespace-nowrap px-1 py-1 md:px-2 md:py-1.5">
                   {trabajo.rs}
@@ -473,6 +511,53 @@ export default function ProgramaTrabajoPage() {
           </tbody>
         </table>
       </div>
+
+      {trabajoSeleccionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="text-xl font-semibold text-stone-800">
+              Orden de compra relacionada
+            </h2>
+
+            <p className="mt-2 text-sm text-stone-500">
+              Esta actividad tiene una OC capturada.
+            </p>
+
+            <div className="mt-5 rounded-lg bg-stone-50 p-4">
+              <p className="text-sm text-stone-500">Cliente</p>
+              <p className="font-medium text-stone-800">
+                {trabajoSeleccionado.cliente || "Sin cliente"}
+              </p>
+
+              <p className="mt-3 text-sm text-stone-500">OC</p>
+              <p className="font-medium text-stone-800">
+                {trabajoSeleccionado.ordenCompra}
+              </p>
+
+              <p className="mt-3 text-sm text-stone-500">Servicio</p>
+              <p className="text-sm text-stone-700">
+                {trabajoSeleccionado.descripcionServicio}
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setTrabajoSeleccionado(null)}
+                className="rounded-lg border border-stone-200 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
+              >
+                Cerrar
+              </button>
+
+              <a
+                href={`/operaciones?oc=${trabajoSeleccionado.ordenCompra}`}
+                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Abrir OC
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
