@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Moneda = "MXN" | "USD";
@@ -56,6 +57,8 @@ function formatearFecha(fecha: string) {
 }
 
 export default function OperacionesPage() {
+  const searchParams = useSearchParams();
+
   const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstatus, setFiltroEstatus] =
@@ -127,7 +130,13 @@ export default function OperacionesPage() {
 
   useEffect(() => {
     cargarOrdenes();
-  }, []);
+
+    const ocUrl = searchParams.get("oc");
+
+    if (ocUrl) {
+      setBusqueda(ocUrl);
+    }
+  }, [searchParams]);
 
   const ordenesFiltradas = useMemo(() => {
     return ordenes.filter((orden) => {
