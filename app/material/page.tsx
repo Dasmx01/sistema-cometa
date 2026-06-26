@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Material = {
+  id: string;
   codigo: string;
   descripcion: string;
   fabricante: string;
@@ -44,50 +46,7 @@ const ubicaciones = [
   "Cuadrillas",
 ];
 
-const materialesIniciales: Material[] = [
-  {
-    codigo: "TUB-0001",
-    descripcion: 'Tubo 4" x 6 m',
-    fabricante: "Genérico",
-    categoria: "Acero",
-    unidad: "Pieza",
-    existencia: 15,
-    stockMinimo: 5,
-    medidaTecnica: 6,
-    unidadTecnica: "Metro",
-    ubicacion: "Rack A1",
-    costo: "$1,250",
-    proveedor: "Proveedor pendiente",
-  },
-  {
-    codigo: "COL-0001",
-    descripcion: 'Cold Rolled 1" x 3 m',
-    fabricante: "Genérico",
-    categoria: "Acero",
-    unidad: "Pieza",
-    existencia: 8,
-    stockMinimo: 3,
-    medidaTecnica: 3,
-    unidadTecnica: "Metro",
-    ubicacion: "Rack A2",
-    costo: "$680",
-    proveedor: "Proveedor pendiente",
-  },
-  {
-    codigo: "RES-0001",
-    descripcion: "Resorte para cortina enrollable",
-    fabricante: "Genérico",
-    categoria: "Resortes",
-    unidad: "Pieza",
-    existencia: 32,
-    stockMinimo: 10,
-    medidaTecnica: 0,
-    unidadTecnica: "",
-    ubicacion: "Estante C1",
-    costo: "$420",
-    proveedor: "Proveedor pendiente",
-  },
-];
+
 
 function obtenerPrefijo(descripcion: string) {
   const texto = descripcion.trim().toUpperCase();
@@ -134,10 +93,40 @@ function ordenarMateriales(lista: Material[]) {
   );
 }
 
+async function cargarMateriales(
+  setMateriales: React.Dispatch<React.SetStateAction<Material[]>>
+) {
+  const { data, error } = await supabase
+    .from("materiales")
+    .select("*")
+    .order("descripcion");
+
+  if (error) {
+    alert("Error al cargar materiales: " + error.message);
+    return;
+  }
+
+  const materiales: Material[] = (data || []).map((item: any) => ({
+    id: item.id,
+    codigo: item.codigo,
+    descripcion: item.descripcion,
+    fabricante: item.fabricante || "",
+    categoria: item.categoria,
+    unidad: item.unidad,
+    existencia: Number(item.existencia),
+    stockMinimo: Number(item.stock_minimo),
+    medidaTecnica: Number(item.medida_tecnica || 0),
+    unidadTecnica: item.unidad_tecnica || "",
+    ubicacion: item.ubicacion,
+    costo: item.costo || "",
+    proveedor: item.proveedor || "",
+  }));
+
+  setMateriales(materiales);
+}
+
 export default function MaterialPage() {
-  const [materiales, setMateriales] = useState<Material[]>(
-    ordenarMateriales(materialesIniciales)
-  );
+  const [materiales, setMateriales] = useState<Material[]>([]);
 
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
@@ -159,6 +148,9 @@ export default function MaterialPage() {
   const [ubicacion, setUbicacion] = useState("");
   const [costo, setCosto] = useState("");
   const [proveedor, setProveedor] = useState("");
+  useEffect(() => {
+    cargarMateriales(setMateriales);
+  }, []);
 
   const materialesFiltrados = useMemo(() => {
     return materiales.filter((material) => {
@@ -209,7 +201,7 @@ export default function MaterialPage() {
     setModalAbierto(true);
   }
 
-  function guardarMaterial() {
+  async function guardarMaterial() {
     if (!descripcion.trim()) {
       alert("La descripción es obligatoria.");
       return;
@@ -225,66 +217,68 @@ export default function MaterialPage() {
       return;
     }
 
+    const datos = {
+      codigo: materialEditando
+        ? materialEditando.codigo
+        : generarCodigo(descripcion, materiales),
+      descripcion,
+      fabricante: fabricante || "Sin fabricante",
+      categoria,
+      unidad,
+      existencia: Number(existencia) || 0,
+      stock_minimo: Number(stockMinimo) || 0,
+      medida_tecnica: Number(medidaTecnica) || 0,
+      unidad_tecnica: unidadTecnica || "",
+      ubicacion,
+      costo: costo || "$0",
+      proveedor: proveedor || "Sin proveedor",
+    };
+
     if (materialEditando) {
-      const materialActualizado: Material = {
-        ...materialEditando,
-        descripcion,
-        fabricante: fabricante || "Sin fabricante",
-        categoria,
-        unidad,
-        existencia: Number(existencia) || 0,
-        stockMinimo: Number(stockMinimo) || 0,
-        medidaTecnica: Number(medidaTecnica) || 0,
-        unidadTecnica: unidadTecnica || "",
-        ubicacion,
-        costo: costo || "$0",
-        proveedor: proveedor || "Sin proveedor",
-      };
+      const { error } = await supabase
+        .from("materiales")
+        .update(datos)
+        .eq("id", materialEditando.id);
 
-      setMateriales((actuales) =>
-        ordenarMateriales(
-          actuales.map((material) =>
-            material.codigo === materialEditando.codigo
-              ? materialActualizado
-              : material
-          )
-        )
-      );
+      if (error) {
+        alert("Error al actualizar material: " + error.message);
+        return;
+      }
     } else {
-      const nuevoMaterial: Material = {
-        codigo: generarCodigo(descripcion, materiales),
-        descripcion,
-        fabricante: fabricante || "Sin fabricante",
-        categoria,
-        unidad,
-        existencia: Number(existencia) || 0,
-        stockMinimo: Number(stockMinimo) || 0,
-        medidaTecnica: Number(medidaTecnica) || 0,
-        unidadTecnica: unidadTecnica || "",
-        ubicacion,
-        costo: costo || "$0",
-        proveedor: proveedor || "Sin proveedor",
-      };
+      const { error } = await supabase
+        .from("materiales")
+        .insert(datos);
 
-      setMateriales((actuales) =>
-        ordenarMateriales([...actuales, nuevoMaterial])
-      );
+      if (error) {
+        alert("Error al guardar material: " + error.message);
+        return;
+      }
     }
+
+    await cargarMateriales(setMateriales);
 
     limpiarFormulario();
     setModalAbierto(false);
   }
 
-  function eliminarMaterial(material: Material) {
+  async function eliminarMaterial(material: Material) {
     const confirmar = confirm(
       `¿Eliminar material?\n\n${material.codigo}\n${material.descripcion}`
     );
 
     if (!confirmar) return;
 
-    setMateriales((actuales) =>
-      actuales.filter((item) => item.codigo !== material.codigo)
-    );
+    const { error } = await supabase
+      .from("materiales")
+      .delete()
+      .eq("id", material.id);
+
+    if (error) {
+      alert("Error al eliminar material: " + error.message);
+      return;
+    }
+
+    await cargarMateriales(setMateriales);
   }
 
   return (
@@ -336,10 +330,7 @@ export default function MaterialPage() {
                 Descripción
               </th>
               <th className="px-3 py-2 font-medium md:px-4 md:py-3">
-                Fabricante
-              </th>
-              <th className="px-3 py-2 font-medium md:px-4 md:py-3">
-                Categoría
+                Proveedor
               </th>
               <th className="px-3 py-2 font-medium md:px-4 md:py-3">
                 Existencia
@@ -347,16 +338,7 @@ export default function MaterialPage() {
               <th className="px-3 py-2 font-medium md:px-4 md:py-3">
                 Stock mínimo
               </th>
-              <th className="px-3 py-2 font-medium md:px-4 md:py-3">
-                Medida técnica
-              </th>
-              <th className="px-3 py-2 font-medium md:px-4 md:py-3">
-                Ubicación
-              </th>
               <th className="px-3 py-2 font-medium md:px-4 md:py-3">Costo</th>
-              <th className="px-3 py-2 font-medium md:px-4 md:py-3">
-                Proveedor
-              </th>
               <th className="px-3 py-2 font-medium md:px-4 md:py-3">
                 Acciones
               </th>
@@ -391,10 +373,7 @@ export default function MaterialPage() {
                   {material.descripcion}
                 </td>
                 <td className="px-1 py-1 md:px-2 md:py-1.5">
-                  {material.fabricante}
-                </td>
-                <td className="px-1 py-1 md:px-2 md:py-1.5">
-                  {material.categoria}
+                  {material.proveedor}
                 </td>
                 <td className="px-1 py-1 md:px-2 md:py-1.5">
                   {material.existencia} {material.unidad}
@@ -403,18 +382,7 @@ export default function MaterialPage() {
                   {material.stockMinimo} {material.unidad}
                 </td>
                 <td className="px-1 py-1 md:px-2 md:py-1.5">
-                  {material.medidaTecnica > 0
-                    ? `${material.medidaTecnica} ${material.unidadTecnica}`
-                    : "N/A"}
-                </td>
-                <td className="px-1 py-1 md:px-2 md:py-1.5">
-                  {material.ubicacion}
-                </td>
-                <td className="px-1 py-1 md:px-2 md:py-1.5">
                   {material.costo}
-                </td>
-                <td className="px-1 py-1 md:px-2 md:py-1.5">
-                  {material.proveedor}
                 </td>
                 <td className="px-1 py-1 md:px-2 md:py-1.5">
                   <div className="flex gap-2">

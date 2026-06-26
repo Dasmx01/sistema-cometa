@@ -30,11 +30,18 @@ type OrdenCompra = {
   estatus: string | null;
 };
 
+type Material = {
+  id: string;
+  existencia: number;
+  stock_minimo: number;
+};
+
 export default function DashboardPage() {
   const [activos, setActivos] = useState<Activo[]>([]);
   const [mantenimientos, setMantenimientos] = useState<Mantenimiento[]>([]);
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
+  const [materiales, setMateriales] = useState<Material[]>([]);
   const [cargando, setCargando] = useState(true);
 
   const [fechaCalendario, setFechaCalendario] = useState(
@@ -88,10 +95,21 @@ export default function DashboardPage() {
       return;
     }
 
+    const { data: materialesData, error: materialesError } = await supabase
+      .from("materiales")
+      .select("id, existencia, stock_minimo");
+
+    if (materialesError) {
+      alert("Error al cargar materiales: " + materialesError.message);
+      setCargando(false);
+      return;
+    }
+
     setActivos((activosData || []) as Activo[]);
     setMantenimientos((mantenimientosData || []) as Mantenimiento[]);
     setTrabajos((trabajosData || []) as Trabajo[]);
     setOrdenesCompra((ordenesData || []) as OrdenCompra[]);
+    setMateriales((materialesData || []) as Material[]);
     setCargando(false);
   }
 
@@ -131,10 +149,15 @@ export default function DashboardPage() {
     (orden) => orden.estatus === "Terminada"
   );
 
+  const materialesBajos = materiales.filter(
+    (material) =>
+      Number(material.existencia) <= Number(material.stock_minimo)
+  );
+
   const tarjetas = [
     {
       titulo: "Materiales bajos",
-      valor: "0",
+      valor: String(materialesBajos.length),
       href: "/material",
     },
     {
