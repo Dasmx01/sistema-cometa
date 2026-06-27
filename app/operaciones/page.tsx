@@ -49,7 +49,9 @@ function formatearMoneda(monto: number, moneda: Moneda) {
 }
 
 function formatearFecha(fecha: string) {
-  return new Date(fecha).toLocaleDateString("es-MX", {
+  const [year, month, day] = fecha.split("-").map(Number);
+
+  return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -139,19 +141,38 @@ export default function OperacionesPage() {
   }, [searchParams]);
 
   const ordenesFiltradas = useMemo(() => {
-    return ordenes.filter((orden) => {
-      const texto =
-        `${orden.cliente} ${orden.planta} ${orden.numeroOC} ${orden.actividadPrincipal} ${estatusAutomatico(orden)}`.toLowerCase();
+    const prioridad: Record<string, number> = {
+      "En proceso": 1,
+      "Abierta": 2,
+      "Terminada": 3,
+      "Cancelada": 4,
+    };
 
-      const coincideBusqueda =
-        texto.includes(busqueda.toLowerCase());
+    return ordenes
+      .filter((orden) => {
+        const texto =
+          `${orden.cliente} ${orden.planta} ${orden.numeroOC} ${orden.actividadPrincipal} ${estatusAutomatico(orden)}`.toLowerCase();
 
-      const coincideEstatus =
-        filtroEstatus === "Todos" ||
-        estatusAutomatico(orden) === filtroEstatus;
+        const coincideBusqueda =
+          texto.includes(busqueda.toLowerCase());
 
-      return coincideBusqueda && coincideEstatus;
-    });
+        const coincideEstatus =
+          filtroEstatus === "Todos" ||
+          estatusAutomatico(orden) === filtroEstatus;
+
+        return coincideBusqueda && coincideEstatus;
+      })
+      .sort((a, b) => {
+        const diferencia =
+          prioridad[estatusAutomatico(a)] -
+          prioridad[estatusAutomatico(b)];
+
+        if (diferencia !== 0) return diferencia;
+
+        return a.cliente.localeCompare(b.cliente, "es", {
+          sensitivity: "base",
+        });
+      });
   }, [busqueda, ordenes, filtroEstatus]);
 
   function limpiarFormulario() {
@@ -490,40 +511,36 @@ export default function OperacionesPage() {
             <div
               key={orden.id}
               onClick={() => setOrdenSeleccionada(orden)}
-              className="cursor-pointer rounded-xl border border-stone-200 bg-white p-5 shadow-sm hover:bg-stone-50"
+              className="cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm hover:bg-stone-50"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-stone-800">
-                      {orden.cliente}
-                    </h2>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-xs text-stone-400">
+                    {formatearFecha(orden.fecha)}
+                  </span>
 
-                    <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
-                      OC {orden.numeroOC}
-                    </span>
+                  <h2 className="text-lg font-semibold text-stone-800">
+                    {orden.cliente}
+                  </h2>
+
+                  <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
+                    OC {orden.numeroOC}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="max-w-[450px] whitespace-normal break-words text-xs text-stone-600 leading-tight">
+                      {orden.actividadPrincipal}
+                    </div>
                   </div>
-
-                  <p className="mt-1 text-sm text-stone-500">
-                    Planta: {orden.planta}
-                  </p>
-
-                  <p className="mt-1 text-sm text-stone-600">
-                    {orden.actividadPrincipal}
-                  </p>
-
-                  <p className="mt-2 text-xs text-stone-400">
-                    Fecha: {formatearFecha(orden.fecha)}
-                  </p>
                 </div>
 
-                <div className="text-right">
+                <div className="flex items-center gap-3">
                   <p className="text-sm font-medium text-stone-700">
                     {formatearMoneda(orden.monto, orden.moneda)}
                   </p>
 
                   <span
-                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                       estatusAutomatico(orden) === "Abierta"
                         ? "bg-blue-50 text-blue-700 border border-blue-200"
                         : estatusAutomatico(orden) === "En proceso"
@@ -538,8 +555,8 @@ export default function OperacionesPage() {
                 </div>
               </div>
 
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between text-xs text-stone-500">
+              <div className="mt-2">
+                <div className="mb-1 flex items-center justify-between text-xs text-stone-500">
                   <span>
                     Avance · {actividadesTerminadas}/{totalActividades} actividades
                   </span>

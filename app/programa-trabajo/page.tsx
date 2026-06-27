@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -63,6 +63,7 @@ export default function ProgramaTrabajoPage() {
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
   const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
+  const inputFechaRef = useRef<HTMLInputElement | null>(null);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [trabajoEditando, setTrabajoEditando] = useState<TrabajoDia | null>(
@@ -149,26 +150,56 @@ export default function ProgramaTrabajoPage() {
     }
   }, [searchParams]);
 
-  const trabajosFiltrados = useMemo(() => {
-    return trabajos.filter((trabajo) => {
-      const texto =
-        `${trabajo.ordenCompra} ${trabajo.cliente} ${trabajo.descripcionServicio} ${trabajo.tecnico} ${trabajo.ayudantes} ${trabajo.vehiculo} ${trabajo.personalTaller} ${trabajo.incidencias}`.toLowerCase();
+  function moverDia(dias: number) {
+    const [year, month, day] = fechaFiltro.split("-").map(Number);
+    const fecha = new Date(year, month - 1, day);
 
-      const coincideBusqueda = texto.includes(busqueda.toLowerCase());
+    fecha.setDate(fecha.getDate() + dias);
 
-      const coincideFecha =
-        !fechaFiltro || trabajo.fecha === fechaFiltro;
+    const nuevaFecha = `${fecha.getFullYear()}-${String(
+      fecha.getMonth() + 1
+    ).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
 
-      const coincideEstatus =
-        estatusFiltro === "Todos" ||
-        trabajo.estatus === estatusFiltro;
+    setFechaFiltro(nuevaFecha);
+    setFecha(nuevaFecha);
+  }
 
-      return (
-        coincideBusqueda &&
-        coincideFecha &&
-        coincideEstatus
-      );
+  function formatearFechaFiltro(fechaTexto: string) {
+    const [year, month, day] = fechaTexto.split("-").map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
     });
+  }
+
+  const trabajosFiltrados = useMemo(() => {
+    return trabajos
+      .filter((trabajo) => {
+        const texto =
+          `${trabajo.ordenCompra} ${trabajo.cliente} ${trabajo.descripcionServicio} ${trabajo.tecnico} ${trabajo.ayudantes} ${trabajo.vehiculo} ${trabajo.personalTaller} ${trabajo.incidencias}`.toLowerCase();
+
+        const coincideBusqueda = texto.includes(busqueda.toLowerCase());
+
+        const coincideFecha =
+          !fechaFiltro || trabajo.fecha === fechaFiltro;
+
+        const coincideEstatus =
+          estatusFiltro === "Todos" ||
+          trabajo.estatus === estatusFiltro;
+
+        return (
+          coincideBusqueda &&
+          coincideFecha &&
+          coincideEstatus
+        );
+      })
+      .sort((a, b) =>
+        a.tecnico.localeCompare(b.tecnico, "es", {
+          sensitivity: "base",
+        })
+      );
   }, [trabajos, busqueda, fechaFiltro, estatusFiltro]);
 
   const personalTallerDelDia = trabajosFiltrados
@@ -336,12 +367,39 @@ export default function ProgramaTrabajoPage() {
           className="w-full max-w-md rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 outline-none focus:border-slate-400"
         />
 
-        <input
-          type="date"
-          value={fechaFiltro}
-          onChange={(e) => setFechaFiltro(e.target.value)}
-          className="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => moverDia(-1)}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+          >
+            ◀
+          </button>
+
+          <button
+            onClick={() => inputFechaRef.current?.showPicker()}
+            className="min-w-[140px] rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+          >
+            {formatearFechaFiltro(fechaFiltro)}
+          </button>
+
+          <button
+            onClick={() => moverDia(1)}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+          >
+            ▶
+          </button>
+
+          <input
+            ref={inputFechaRef}
+            type="date"
+            value={fechaFiltro}
+            onChange={(e) => {
+              setFechaFiltro(e.target.value);
+              setFecha(e.target.value);
+            }}
+            className="sr-only"
+          />
+        </div>
 
         <select
           value={estatusFiltro}
