@@ -29,6 +29,18 @@ type OrdenCompra = {
   cliente: string;
 };
 
+type Tecnico = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+};
+
+type Radio = {
+  id: string;
+  numero: string;
+  activo: boolean;
+};
+
 function fechaHoy() {
   const hoy = new Date();
 
@@ -60,6 +72,8 @@ export default function ProgramaTrabajoPage() {
 
   const [trabajos, setTrabajos] = useState<TrabajoDia[]>([]);
   const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
+  const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
+  const [radios, setRadios] = useState<Radio[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
   const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
@@ -129,18 +143,52 @@ export default function ProgramaTrabajoPage() {
       return;
     }
 
-    const ordenesFormateadas: OrdenCompra[] = (data || []).map((orden: any) => ({
-      id: orden.id,
-      numeroOC: orden.numero_oc,
-      cliente: orden.cliente || "",
-    }));
+    const ordenesFormateadas: OrdenCompra[] = (data || []).map(
+      (orden: any) => ({
+        id: orden.id,
+        numeroOC: orden.numero_oc,
+        cliente: orden.cliente || "",
+      })
+    );
 
     setOrdenesCompra(ordenesFormateadas);
+  }
+
+  async function cargarTecnicos() {
+    const { data, error } = await supabase
+      .from("tecnicos")
+      .select("id, nombre, activo")
+      .eq("activo", true)
+      .order("nombre", { ascending: true });
+
+    if (error) {
+      alert("Error al cargar técnicos: " + error.message);
+      return;
+    }
+
+    setTecnicos((data || []) as Tecnico[]);
+  }
+
+  async function cargarRadios() {
+    const { data, error } = await supabase
+      .from("radios")
+      .select("id, numero, activo")
+      .eq("activo", true)
+      .order("numero", { ascending: true });
+
+    if (error) {
+      alert("Error al cargar radios: " + error.message);
+      return;
+    }
+
+    setRadios((data || []) as Radio[]);
   }
 
   useEffect(() => {
     cargarTrabajos();
     cargarOrdenesCompra();
+    cargarTecnicos();
+    cargarRadios();
 
     const fechaUrl = searchParams.get("fecha");
 
@@ -172,6 +220,42 @@ export default function ProgramaTrabajoPage() {
       month: "short",
       year: "numeric",
     });
+  }
+
+  function ayudantesSeleccionados() {
+    return ayudantes
+      .split(",")
+      .map((nombre) => nombre.trim())
+      .filter(Boolean);
+  }
+
+  function agregarAyudante(nombre: string) {
+    if (!nombre) return;
+
+    const actuales = ayudantesSeleccionados();
+
+    if (actuales.includes(nombre)) return;
+    if (nombre === tecnico) return;
+
+    setAyudantes([...actuales, nombre].join(", "));
+  }
+
+  function quitarAyudante(nombre: string) {
+    const nuevos = ayudantesSeleccionados().filter(
+      (ayudante) => ayudante !== nombre
+    );
+
+    setAyudantes(nuevos.join(", "));
+  }
+
+  function seleccionarTecnico(nombre: string) {
+    setTecnico(nombre);
+
+    const nuevosAyudantes = ayudantesSeleccionados().filter(
+      (ayudante) => ayudante !== nombre
+    );
+
+    setAyudantes(nuevosAyudantes.join(", "));
   }
 
   const trabajosFiltrados = useMemo(() => {
@@ -725,36 +809,108 @@ export default function ProgramaTrabajoPage() {
                 <label className="mb-1 block text-xs font-medium text-stone-500">
                   Técnico
                 </label>
-                <input
+
+                <select
                   value={tecnico}
-                  onChange={(e) => setTecnico(e.target.value)}
-                  className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm"
-                  placeholder="Ej. Javier"
-                />
+                  onChange={(e) => seleccionarTecnico(e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700"
+                >
+                  <option value="">Seleccionar técnico</option>
+
+                  {tecnico && !tecnicos.some((item) => item.nombre === tecnico) && (
+                    <option value={tecnico}>{tecnico}</option>
+                  )}
+
+                  {tecnicos.map((item) => (
+                    <option key={item.id} value={item.nombre}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-stone-500">
                   Ayudantes
                 </label>
-                <input
-                  value={ayudantes}
-                  onChange={(e) => setAyudantes(e.target.value)}
-                  className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm"
-                  placeholder="Ej. Jesús, Kevin, Luis"
-                />
+
+                <div className="rounded-lg border border-stone-200 bg-white p-2">
+
+                  <div className="mb-2 flex flex-wrap gap-2">
+
+                    {ayudantesSeleccionados().map((nombre) => (
+
+                      <span
+                        key={nombre}
+                        className="flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs"
+                      >
+                        {nombre}
+
+                        <button
+                          type="button"
+                          onClick={() => quitarAyudante(nombre)}
+                          className="font-bold text-red-500 hover:text-red-700"
+                        >
+                          ×
+                        </button>
+
+                      </span>
+
+                    ))}
+
+                  </div>
+
+                  <select
+                    value=""
+                    onChange={(e) => agregarAyudante(e.target.value)}
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                  >
+
+                    <option value="">
+                      + Agregar ayudante
+                    </option>
+
+                    {tecnicos
+                      .filter((t) => t.nombre !== tecnico)
+                      .filter(
+                        (t) => !ayudantesSeleccionados().includes(t.nombre)
+                      )
+                      .map((t) => (
+                        <option
+                          key={t.id}
+                          value={t.nombre}
+                        >
+                          {t.nombre}
+                        </option>
+                      ))}
+
+                  </select>
+
+                </div>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-stone-500">
                   Radio
                 </label>
-                <input
+
+                <select
                   value={radio}
                   onChange={(e) => setRadio(e.target.value)}
-                  className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm"
-                  placeholder="Ej. 142-7301"
-                />
+                  className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700"
+                >
+                  <option value="">Seleccionar radio</option>
+
+                  {radio && !radios.some((item) => item.numero === radio) && (
+                    <option value={radio}>{radio}</option>
+                  )}
+
+                  {radios.map((item) => (
+                    <option key={item.id} value={item.numero}>
+                      {item.numero}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-2">

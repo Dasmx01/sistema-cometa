@@ -71,6 +71,12 @@ export default function RootLayout({
                   <Link href="/programa-trabajo" className="block rounded px-3 py-1 hover:bg-stone-100">
                     - Programa de Trabajo
                   </Link>
+                  <Link href="/tecnicos" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Técnicos
+                  </Link>
+                  <Link href="/radios" className="block rounded px-3 py-1 hover:bg-stone-100">
+                    - Radios
+                  </Link>
                   <Link href="/historial" className="block rounded px-3 py-1 hover:bg-stone-100">
                     - Historial
                   </Link>
