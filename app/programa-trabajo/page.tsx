@@ -41,6 +41,12 @@ type Radio = {
   activo: boolean;
 };
 
+type Vehiculo = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+};
+
 function fechaHoy() {
   const hoy = new Date();
 
@@ -74,6 +80,7 @@ export default function ProgramaTrabajoPage() {
   const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [radios, setRadios] = useState<Radio[]>([]);
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [estatusFiltro, setEstatusFiltro] = useState("Todos");
   const [fechaFiltro, setFechaFiltro] = useState(fechaHoy());
@@ -184,11 +191,28 @@ export default function ProgramaTrabajoPage() {
     setRadios((data || []) as Radio[]);
   }
 
+  async function cargarVehiculos() {
+    const { data, error } = await supabase
+      .from("vehiculos")
+      .select("id, nombre, activo")
+      .eq("activo", true)
+      .order("nombre", { ascending: true });
+
+    if (error) {
+      alert("Error al cargar vehículos: " + error.message);
+      return;
+    }
+
+  setVehiculos((data || []) as Vehiculo[]);
+}
+
   useEffect(() => {
     cargarTrabajos();
     cargarOrdenesCompra();
     cargarTecnicos();
     cargarRadios();
+    cargarVehiculos();
+
 
     const fechaUrl = searchParams.get("fecha");
 
@@ -797,12 +821,24 @@ export default function ProgramaTrabajoPage() {
                 <label className="mb-1 block text-xs font-medium text-stone-500">
                   Vehículo
                 </label>
-                <input
+
+                <select
                   value={vehiculo}
                   onChange={(e) => setVehiculo(e.target.value)}
-                  className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm"
-                  placeholder="Ej. Hilux Gris"
-                />
+                  className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700"
+                >
+                  <option value="">Seleccionar vehículo</option>
+
+                  {vehiculo && !vehiculos.some((item) => item.nombre === vehiculo) && (
+                    <option value={vehiculo}>{vehiculo}</option>
+                  )}
+
+                  {vehiculos.map((item) => (
+                    <option key={item.id} value={item.nombre}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
