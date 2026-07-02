@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -58,7 +58,7 @@ function formatearFecha(fecha: string) {
   });
 }
 
-export default function OperacionesPage() {
+function OperacionesContenido() {
   const searchParams = useSearchParams();
 
   const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
@@ -291,116 +291,68 @@ export default function OperacionesPage() {
     cargarOrdenes();
   }
 
-  async function cambiarActividad(
-    ordenId: string,
-    actividadIndex: number
-  ) {
-    const orden = ordenes.find(
-      (item) => item.id === ordenId
-    );
+  async function cambiarActividad(actividadId: string) {
+    let nuevoValor = false;
+    let ordenId = "";
 
-    if (!orden) return;
+    const nuevasOrdenes = ordenes.map((orden) => {
+      const actividadesActualizadas = orden.actividades.map((actividad) => {
+        if (actividad.id !== actividadId) return actividad;
 
-    const actividad = orden.actividades[actividadIndex];
-
-    if (!actividad) return;
-
-    const nuevoValor = !actividad.completada;
-
-    const { error } = await supabase
-      .from("ordenes_compra_actividades")
-      .update({
-        completada: nuevoValor,
-      })
-      .eq("id", actividad.id);
-
-    if (error) {
-      alert(
-        "Error al actualizar actividad: " +
-          error.message
-      );
-      return;
-    }
-
-    setOrdenes((actuales) =>
-      actuales.map((orden) => {
-        if (orden.id !== ordenId) return orden;
+        nuevoValor = !actividad.completada;
+        ordenId = orden.id;
 
         return {
-          ...orden,
-          actividades: orden.actividades.map(
-            (actividad, index) =>
-              index === actividadIndex
-                ? {
-                    ...actividad,
-                    completada: nuevoValor,
-                  }
-                : actividad
-          ),
+          ...actividad,
+          completada: nuevoValor,
         };
-      })
-    );
-
-    setOrdenSeleccionada((actual) => {
-      if (!actual || actual.id !== ordenId)
-        return actual;
+      });
 
       return {
-        ...actual,
-        actividades: actual.actividades.map(
-          (actividad, index) =>
-            index === actividadIndex
-              ? {
-                  ...actividad,
-                  completada: nuevoValor,
-                }
-              : actividad
-        ),
+        ...orden,
+        actividades: actividadesActualizadas,
       };
     });
 
-        const ordenActualizada = ordenes.find(
-          (item) => item.id === ordenId
-        );
+    const ordenActualizada = nuevasOrdenes.find(
+      (orden) => orden.id === ordenId
+    );
 
-        if (ordenActualizada) {
-          const total =
-            ordenActualizada.actividades.length;
+    if (!ordenActualizada) return;
 
-          const completadas =
-            ordenActualizada.actividades.filter(
-              (actividad, index) =>
-                index === actividadIndex
-                  ? nuevoValor
-                  : actividad.completada
-            ).length;
+    const { error } = await supabase
+      .from("ordenes_compra_actividades")
+      .update({ completada: nuevoValor })
+      .eq("id", actividadId);
 
-          const porcentaje =
-            total === 0
-              ? 0
-              : Math.round(
-                (completadas / total) * 100
-              );
+    if (error) {
+      alert("Error al actualizar actividad: " + error.message);
+      return;
+    }
 
-          let nuevoEstatus = "Abierta";
+    if (ordenActualizada.estatus !== "Cancelada") {
+      const nuevoEstatus = estatusAutomatico(ordenActualizada);
 
-          if (porcentaje === 100) {
-            nuevoEstatus = "Terminada";
-          } else if (porcentaje > 0) {
-            nuevoEstatus = "En proceso";
-          }
+      await supabase
+        .from("ordenes_compra")
+        .update({ estatus: nuevoEstatus })
+        .eq("id", ordenId);
+    }
 
-          if (orden.estatus !== "Cancelada") {
-            await supabase
-              .from("ordenes_compra")
-              .update({
-                estatus: nuevoEstatus,
-              })
-              .eq("id", ordenId);
-          }
-        }
+    setOrdenes(nuevasOrdenes);
 
-        cargarOrdenes();
+    setOrdenSeleccionada((actual) => {
+      if (!actual || actual.id !== ordenId) return actual;
+
+      return {
+        ...actual,
+        actividades: actual.actividades.map((actividad) =>
+          actividad.id === actividadId
+            ? { ...actividad, completada: nuevoValor }
+            : actividad
+        ),
+      };
+    });
   }
 
   async function eliminarOrden() {
@@ -680,7 +632,8 @@ export default function OperacionesPage() {
                 <input
                   type="checkbox"
                   checked={actividad.completada}
-                  onChange={() => cambiarActividad(ordenSeleccionada.id, index)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => cambiarActividad(actividad.id)}
                   className="h-4 w-4"
                 />
 
@@ -818,5 +771,13 @@ export default function OperacionesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OperacionesPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-stone-500">Cargando operaciones...</p>}>
+      <OperacionesContenido />
+    </Suspense>
   );
 }

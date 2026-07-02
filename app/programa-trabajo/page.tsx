@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -73,7 +73,7 @@ function badgeEstatus(estatus: EstatusTrabajo) {
   return "bg-stone-50 text-stone-700 border-stone-200";
 }
 
-export default function ProgramaTrabajoPage() {
+function ProgramaTrabajoContenido() {
   const searchParams = useSearchParams();
 
   const [trabajos, setTrabajos] = useState<TrabajoDia[]>([]);
@@ -240,6 +240,7 @@ export default function ProgramaTrabajoPage() {
     const [year, month, day] = fechaTexto.split("-").map(Number);
 
     return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
+      weekday: "short",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -594,6 +595,7 @@ export default function ProgramaTrabajoPage() {
                 <td className="whitespace-nowrap px-1 py-1 md:px-2 md:py-1.5">
                   <select
                     value={trabajo.estatus}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) =>
                       cambiarEstatusDirecto(
                         trabajo.id,
@@ -1013,5 +1015,13 @@ export default function ProgramaTrabajoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProgramaTrabajoPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-stone-500">Cargando programa de trabajo...</p>}>
+      <ProgramaTrabajoContenido />
+    </Suspense>
   );
 }
