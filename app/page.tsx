@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [ordenesCompra, setOrdenesCompra] = useState<OrdenCompra[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [listoCliente, setListoCliente] = useState(false);
 
   const [fechaCalendario, setFechaCalendario] = useState(
     new Date()
@@ -127,6 +128,7 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    setListoCliente(true);
     cargarDatos();
   }, []);
 
@@ -228,19 +230,27 @@ export default function DashboardPage() {
     return trabajos.filter((trabajo) => trabajo.fecha === fechaBuscada);
   }
 
-  function textoTrabajo(trabajo: Trabajo) {
-    if (trabajo.orden_compra && trabajo.cliente) {
-      return `${trabajo.orden_compra} - ${trabajo.cliente}`;
+    function textoTrabajo(trabajo: Trabajo) {
+      if (trabajo.orden_compra && trabajo.cliente) {
+        return `${trabajo.orden_compra} - ${trabajo.cliente}`;
+      }
+
+      if (trabajo.orden_compra) {
+        return trabajo.orden_compra;
+      }
+
+      return trabajo.cliente || "Actividad";
     }
 
-    if (trabajo.orden_compra) {
-      return trabajo.orden_compra;
+    if (!listoCliente) {
+      return (
+        <div className="text-sm text-stone-500">
+          Cargando Info Panel...
+        </div>
+      );
     }
 
-    return trabajo.cliente || "Actividad";
-  }
-
-  return (
+    return (
     <div className="h-full">
       <div className="mb-5">
         <h1 className="text-3xl font-semibold text-stone-800">Info Panel</h1>
