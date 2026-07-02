@@ -36,6 +36,19 @@ type Material = {
   stock_minimo: number;
 };
 
+function fechaHoyLocal() {
+  const hoy = new Date();
+
+  hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
+
+  return hoy.toISOString().split("T")[0];
+}
+
+function fechaTextoALocal(fechaTexto: string) {
+  const [year, month, day] = fechaTexto.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export default function DashboardPage() {
   const [activos, setActivos] = useState<Activo[]>([]);
   const [mantenimientos, setMantenimientos] = useState<Mantenimiento[]>([]);
@@ -117,8 +130,8 @@ export default function DashboardPage() {
     cargarDatos();
   }, []);
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const hoyTexto = fechaHoyLocal();
+  const hoy = fechaTextoALocal(hoyTexto);
 
   const en30Dias = new Date(hoy);
   en30Dias.setDate(en30Dias.getDate() + 30);
@@ -133,11 +146,7 @@ export default function DashboardPage() {
     return fecha >= hoy && fecha <= en30Dias;
   });
 
-  const trabajosHoy = trabajos.filter((trabajo) => {
-    const fecha = new Date(trabajo.fecha);
-    fecha.setHours(0, 0, 0, 0);
-    return fecha.getTime() === hoy.getTime();
-  });
+  const trabajosHoy = trabajos.filter((trabajo) => trabajo.fecha === hoyTexto);
 
   const ocAbiertas = ordenesCompra.filter(
     (orden) =>
@@ -318,14 +327,6 @@ export default function DashboardPage() {
               const fechaSeleccionada = `${year}-${String(
                 month + 1
               ).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-
-              const hoyLocal = new Date();
-
-              hoyLocal.setMinutes(
-                hoyLocal.getMinutes() - hoyLocal.getTimezoneOffset()
-              );
-
-              const hoyTexto = hoyLocal.toISOString().split("T")[0];
 
               const esHoy = fechaSeleccionada === hoyTexto;
 
